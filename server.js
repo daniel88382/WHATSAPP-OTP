@@ -406,9 +406,197 @@
 
 
 
+//const express = require("express");
+//const axios = require("axios");
+//const cron = require("node-cron");
+
+//const app = express();
+//app.use(express.json());
+
+///* CONFIG */
+//const LICENSE = "73468001020";
+//const APIKEY = "KfQPuWXtiEOUTdz6qRZnlDAbV";
+
+///* MEMORY DATABASE */
+//const otpStore = {};
+//const subscribers = new Set();
+//let lastPrice22 = null;
+
+///* PHONE FORMAT */
+//function normalizePhone(phone) {
+//    phone = phone.replace(/\D/g, "");
+//    if (phone.length === 10) phone = "91" + phone;
+//    return phone;
+//}
+
+///* SEND WHATSAPP OTP */
+//async function sendOtpWhatsapp(phone, otp) {
+
+//    const paramValue = `Verification,GoldPE,WhatsApp,${otp}`;
+//    const encodedParam = encodeURIComponent(paramValue);
+
+//    const url =
+//        `https://web.chatinfy.in/api/sendtemplate.php?` +
+//        `LicenseNumber=${LICENSE}&APIKey=${APIKEY}&Contact=${phone}` +
+//        `&Template=newotptemp&Param=${encodedParam}&URLParam=${otp}`;
+
+//    try {
+//        const res = await axios.get(url);
+//        console.log("WA:", res.data);
+//    } catch (e) {
+//        console.log("WA ERROR:", e.message);
+//    }
+//}
+
+///* SEND OTP */
+//app.post("/send-otp", async (req, res) => {
+
+//    const phone = normalizePhone(req.body.phone);
+
+//    const otp = Math.floor(100000 + Math.random() * 900000);
+
+//    otpStore[phone] = otp;
+
+//    console.log("OTP SENT:", phone, otp);
+
+//    await sendOtpWhatsapp(phone, otp);
+
+//    res.json({ success: true });
+//});
+
+///* VERIFY OTP */
+//app.post("/verify-otp", (req, res) => {
+
+//    const phone = normalizePhone(req.body.phone);
+//    const otp = req.body.otp;
+
+//    if (otpStore[phone] && otpStore[phone].toString() === otp.toString()) {
+
+//        delete otpStore[phone];
+//        subscribers.add(phone);
+
+//        console.log("VERIFIED:", phone);
+
+//        res.json({ success: true });
+//    } else {
+//        res.json({ success: false });
+//    }
+//});
+
+///* =====================================================
+//                GOLD ALERT WHATSAPP
+//===================================================== */
+
+//async function sendGoldWhatsapp(phone, trend, p18, p22, p24) {
+
+//    const template = trend === "UP" ? "newtemp" : "newtemp2";
+
+//    // SAFE DATE FORMAT (Meta Approved)
+//    const now = new Date();
+//    const date =
+//        now.getDate() + " " +
+//        now.toLocaleString('en-US', { month: 'short' }) + " " +
+//        now.getFullYear() + " " +
+//        now.getHours() + ":" +
+//        now.getMinutes();
+
+//    // SAFE TEXT (NO EMOJI)
+//    const trendText = trend === "UP" ? "RISE" : "FALL";
+
+//    const paramString = `${date},${trendText},${p18},${p22},${p24}`;
+
+//    const url =
+//        `https://web.chatinfy.in/api/sendtemplate.php?` +
+//        `LicenseNumber=${LICENSE}&APIKey=${APIKEY}&Contact=${phone}` +
+//        `&Template=${template}&Param=${encodeURIComponent(paramString)}`;
+
+//    try {
+//        const res = await axios.get(url);
+//        console.log("GOLD WA:", phone, trend, res.data);
+//    } catch (e) {
+//        console.log("GOLD ERROR:", e.message);
+//    }
+//}
+
+
+///* ================= CHECK GOLD ================= */
+
+//async function checkGold() {
+
+//    try {
+
+//        const res = await axios.get("https://backend-2zvk.onrender.com/predict");
+//        const data = res.data.today;
+
+//        // force decimal (Meta requirement)
+//        const p18 = Number(data["18k"]).toFixed(2);
+//        const p22 = Number(data["22k"]).toFixed(2);
+//        const p24 = Number(data["24k"]).toFixed(2);
+
+//        console.log("Current 22K:", p22);
+
+//        // first run store only
+//        if (lastPrice22 === null) {
+//            lastPrice22 = p22;
+//            console.log("First run skip");
+//            return;
+//        }
+
+//        let trend = null;
+
+//        if (p22 > lastPrice22) trend = "UP";
+//        else if (p22 < lastPrice22) trend = "DOWN";
+//        else return;
+
+//        lastPrice22 = p22;
+
+//        // send to all verified users
+//        for (const phone of subscribers) {
+//            await sendGoldWhatsapp(phone, trend, p18, p22, p24);
+//        }
+
+//        console.log("Gold Alert Sent:", trend);
+
+//    } catch (e) {
+//        console.log("Gold API ERROR:", e.message);
+//    }
+//}
+
+///* ================= CRON EVERY 5 MIN ================= */
+
+//// Morning 9 AM IST
+//cron.schedule("0 9 * * *", checkGold, {
+//    timezone: "Asia/Kolkata"
+//});
+
+//// Evening 6 PM IST
+//cron.schedule("0 18 * * *", checkGold, {
+//    timezone: "Asia/Kolkata"
+//});
+
+
+///* ================= TEST ROUTE ================= */
+
+//app.get("/test", async (req, res) => {
+//    await checkGold();
+//    res.send("checked");
+//});
+
+///* ================= SERVER ================= */
+
+//const PORT = process.env.PORT || 3000;
+
+//app.listen(PORT, "0.0.0.0", () =>
+//    console.log("SERVER RUNNING ON PORT", PORT)
+//);
+
+
+
+
 const express = require("express");
 const axios = require("axios");
 const cron = require("node-cron");
+const fs = require("fs");
 
 const app = express();
 app.use(express.json());
@@ -417,10 +605,27 @@ app.use(express.json());
 const LICENSE = "73468001020";
 const APIKEY = "KfQPuWXtiEOUTdz6qRZnlDAbV";
 
+/* ================= PRICE MEMORY FIX ================= */
+
+const PRICE_FILE = "lastprice.json";
+
+function loadLastPrice() {
+    try {
+        const data = fs.readFileSync(PRICE_FILE);
+        return JSON.parse(data).price;
+    } catch {
+        return null;
+    }
+}
+
+function saveLastPrice(price) {
+    fs.writeFileSync(PRICE_FILE, JSON.stringify({ price }));
+}
+
 /* MEMORY DATABASE */
 const otpStore = {};
 const subscribers = new Set();
-let lastPrice22 = null;
+let lastPrice22 = loadLastPrice();
 
 /* PHONE FORMAT */
 function normalizePhone(phone) {
@@ -442,7 +647,7 @@ async function sendOtpWhatsapp(phone, otp) {
 
     try {
         const res = await axios.get(url);
-        console.log("WA:", res.data);
+        console.log("WA OTP:", res.data);
     } catch (e) {
         console.log("WA ERROR:", e.message);
     }
@@ -452,7 +657,6 @@ async function sendOtpWhatsapp(phone, otp) {
 app.post("/send-otp", async (req, res) => {
 
     const phone = normalizePhone(req.body.phone);
-
     const otp = Math.floor(100000 + Math.random() * 900000);
 
     otpStore[phone] = otp;
@@ -476,22 +680,19 @@ app.post("/verify-otp", (req, res) => {
         subscribers.add(phone);
 
         console.log("VERIFIED:", phone);
-
         res.json({ success: true });
+
     } else {
         res.json({ success: false });
     }
 });
 
-/* =====================================================
-                GOLD ALERT WHATSAPP
-===================================================== */
+/* ================= GOLD ALERT ================= */
 
 async function sendGoldWhatsapp(phone, trend, p18, p22, p24) {
 
     const template = trend === "UP" ? "newtemp" : "newtemp2";
 
-    // SAFE DATE FORMAT (Meta Approved)
     const now = new Date();
     const date =
         now.getDate() + " " +
@@ -500,7 +701,6 @@ async function sendGoldWhatsapp(phone, trend, p18, p22, p24) {
         now.getHours() + ":" +
         now.getMinutes();
 
-    // SAFE TEXT (NO EMOJI)
     const trendText = trend === "UP" ? "RISE" : "FALL";
 
     const paramString = `${date},${trendText},${p18},${p22},${p24}`;
@@ -518,7 +718,6 @@ async function sendGoldWhatsapp(phone, trend, p18, p22, p24) {
     }
 }
 
-
 /* ================= CHECK GOLD ================= */
 
 async function checkGold() {
@@ -528,17 +727,17 @@ async function checkGold() {
         const res = await axios.get("https://backend-2zvk.onrender.com/predict");
         const data = res.data.today;
 
-        // force decimal (Meta requirement)
         const p18 = Number(data["18k"]).toFixed(2);
         const p22 = Number(data["22k"]).toFixed(2);
         const p24 = Number(data["24k"]).toFixed(2);
 
         console.log("Current 22K:", p22);
 
-        // first run store only
+        // first run store
         if (lastPrice22 === null) {
             lastPrice22 = p22;
-            console.log("First run skip");
+            saveLastPrice(p22);
+            console.log("First run stored");
             return;
         }
 
@@ -549,8 +748,8 @@ async function checkGold() {
         else return;
 
         lastPrice22 = p22;
+        saveLastPrice(p22);
 
-        // send to all verified users
         for (const phone of subscribers) {
             await sendGoldWhatsapp(phone, trend, p18, p22, p24);
         }
@@ -562,24 +761,16 @@ async function checkGold() {
     }
 }
 
-/* ================= CRON EVERY 5 MIN ================= */
+/* ================= CRON ================= */
 
-// Morning 9 AM IST
+// 9 AM IST
 cron.schedule("0 9 * * *", checkGold, {
     timezone: "Asia/Kolkata"
 });
 
-// Evening 6 PM IST
+// 6 PM IST
 cron.schedule("0 18 * * *", checkGold, {
     timezone: "Asia/Kolkata"
-});
-
-
-/* ================= TEST ROUTE ================= */
-
-app.get("/test", async (req, res) => {
-    await checkGold();
-    res.send("checked");
 });
 
 /* ================= SERVER ================= */
@@ -589,6 +780,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () =>
     console.log("SERVER RUNNING ON PORT", PORT)
 );
-
 
 
